@@ -6,7 +6,7 @@
 // ?seed=N fixes the course's random choices. ?shot=start|play|ring|land
 // (with &seed=N) stages that scene instead of running the loop, paints it
 // twice and sets window.__shotReady for a screenshot.
-import { BEST_KEY, STEP } from './config.js';
+import { BEST_KEY, SCORE, STEP } from './config.js';
 import { createRandom } from './random.js';
 import { createWorld, EVENT_CRASH, EVENT_FUEL_EMPTY, EVENT_LANDED, EVENT_OVER, EVENT_RING, EVENT_RING_PERFECT } from './world.js';
 import { ACTION_CONFIRM, ACTION_PAUSE, createInput } from './input.js';
@@ -132,7 +132,12 @@ function runGame() {
     if (events & EVENT_RING) {
       const perfect = (events & EVENT_RING_PERFECT) !== 0;
       audio.ring(perfect);
-      world.state.flash = perfect ? 'PERFECT RING! +400' : 'RING! +250';
+      // The flash names the real haul: the ring, the perfect bonus when
+      // the pass was dead centre, and the chain bonus when the rings keep
+      // coming without a miss.
+      const haul = SCORE.ring + (perfect ? SCORE.ringPerfect : 0) + SCORE.comboStep * (world.state.combo - 1);
+      const chain = world.state.combo > 1 ? `  COMBO x${world.state.combo}` : '';
+      world.state.flash = perfect ? `PERFECT RING! +${haul}${chain}` : `RING! +${haul}${chain}`;
       world.state.flashUntil = world.state.elapsed + 1.6;
       announce(perfect ? 'Perfect ring.' : 'Ring.');
     }

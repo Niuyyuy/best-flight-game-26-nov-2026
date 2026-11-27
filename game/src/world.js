@@ -5,7 +5,7 @@
 // sound. Terrain is a pure function of (x, z), so the renderer and the
 // physics always agree about the ground.
 
-import { COURSE, PLANE, RINGS, SCORE, STEP } from './config.js';
+import { COURSE, PLANE, RINGS, SCORE, STEP, WIND } from './config.js';
 import { fbm2, noise1 } from './random.js';
 
 export const EVENT_RING = 1;
@@ -18,6 +18,15 @@ export const EVENT_OVER = 32;
 /** Where the river runs, in metres of x, as it wanders down the valley. */
 export function riverX(z) {
   return 170 * noise1(z * 0.00045 + 3.7) - 60 + 60 * Math.sin(z * 0.00021);
+}
+
+/**
+ * The crosswind at course distance z, in metres per second sideways
+ * (positive pushes the plane to the right). Smooth seeded noise, so the
+ * gust a pilot meets at one bend is the same on every run of the seed.
+ */
+export function windAt(z) {
+  return WIND.max * (2 * noise1(z * WIND.wander + WIND.offset) - 1);
 }
 
 /** The volcano's centre and height: the ridge the course is named for. */
@@ -94,7 +103,11 @@ export function createWorld(random) {
     rings,
     score: 0,
     ringsHit: 0,
+    /** Rings scored in a row without a miss; a miss breaks it to zero. */
+    combo: 0,
     fuel: PLANE.fuel,
+    /** The crosswind where the plane is now, metres per second. */
+    wind: 0,
     elapsed: 0,
     crashed: false,
     landed: false,
@@ -118,7 +131,9 @@ export function createWorld(random) {
     }
     state.score = 0;
     state.ringsHit = 0;
+    state.combo = 0;
     state.fuel = PLANE.fuel;
+    state.wind = 0;
     state.elapsed = 0;
     state.crashed = false;
     state.landed = false;
@@ -165,10 +180,14 @@ export function createWorld(random) {
     plane.heading = Math.max(-38, Math.min(38, plane.heading));
 
     // Move: forward along the course, sideways with the heading, up and down
-    // with the pitch. Climb bleeds speed a little; a dive adds some.
+    // with the pitch. Climb bleeds speed a little; a dive adds some. The
+    // crosswind slides the plane sideways on top of all of it, so holding
+    // the line means crabbing a few degrees into the gust.
     const headingRad = (plane.heading * Math.PI) / 180;
     plane.z += Math.cos(headingRad) * plane.speed * dt;
     plane.x += Math.sin(headingRad) * plane.speed * dt;
+    state.wind = windAt(plane.z);
+    plane.x += state.wind * dt;
     const vertical = plane.pitch * (plane.pitch > 0 ? PLANE.climbRate : PLANE.sinkRate);
     plane.altitude += vertical * (plane.speed / 90) * dt;
     plane.altitude = Math.max(2, Math.min(COURSE.maxAltitude, plane.altitude));
@@ -180,7 +199,10 @@ export function createWorld(random) {
     if (hadFuel && state.fuel === 0) events |= EVENT_FUEL_EMPTY;
     state.score = Math.max(0, state.score + SCORE.second * dt);
 
-    // Rings: crossing a ring's z scores when the plane is inside it.
+    // Rings: crossing a ring's z scores when the plane is inside it. A hit
+    // extends the chain, and the chain pays a bonus on top of the ring;
+    // flying past a ring breaks the chain, so the line through the rings
+    // matters as much as any single one.
     for (const ring of rings) {
       if (ring.passed || plane.z < ring.z) continue;
       ring.passed = true;
@@ -190,12 +212,15 @@ export function createWorld(random) {
       if (distance < ring.r) {
         ring.scored = true;
         state.ringsHit += 1;
-        state.score += SCORE.ring;
+        state.combo += 1;
+        state.score += SCORE.ring + SCORE.comboStep * (state.combo - 1);
         events |= EVENT_RING;
         if (distance < ring.r * SCORE.perfectFraction) {
           state.score += SCORE.ringPerfect;
           events |= EVENT_RING_PERFECT;
         }
+      } else {
+        state.combo = 0;
       }
     }
 

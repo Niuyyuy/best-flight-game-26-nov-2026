@@ -39,8 +39,24 @@ export const PLANE = {
   rollMax: 52,
   /** Heading change, degrees per second, at full bank. */
   turnRate: 26,
-  /** Fuel, in seconds of full-throttle flight. */
-  fuel: 240,
+  /** Fuel, in seconds of full-throttle flight. A full course takes about
+   *  95 seconds of flying, so 180 seconds makes the throttle a real choice:
+   *  firewall it the whole way and the tank is dry before the runway. */
+  fuel: 180,
+};
+
+/**
+ * The crosswind: a slow, seeded gust that slides the plane sideways as it
+ * flies down the course, strongest where the valley narrows. It never
+ * exceeds WIND.max metres per second, and the sign flips with the terrain,
+ * so the pilot is always crabbing a little to hold the line.
+ */
+export const WIND = {
+  max: 5,
+  /** How quickly the gust changes along the course, per metre. */
+  wander: 0.0006,
+  /** The noise offset, so the wind's pattern never matches the river's. */
+  offset: 9.1,
 };
 
 export const RINGS = [
@@ -59,6 +75,10 @@ export const SCORE = {
   ringPerfect: 150,
   /** A pass counts as perfect inside this fraction of the ring's radius. */
   perfectFraction: 0.45,
+  /** Each ring in an unbroken chain adds this much again: the second ring
+   *  in a row is worth 50 more than the first, the third 100 more, and so
+   *  on — missing a ring breaks the chain back to zero. */
+  comboStep: 50,
   landing: 1000,
   landingSoft: 400,
   second: -1,
@@ -70,7 +90,14 @@ export const PALETTE = {
   skyHorizon: '#cfe6f2',
   sun: '#fff3c4',
   cloud: '#ffffff',
+  cloudShade: '#d7e4f0',
   ridgeFar: '#7d94b8',
+  ridgeMid: '#6b84a6',
+  ridgeSilhouette: '#546e92',
+  smoke: '#e9eef2',
+  shadow: 'rgba(10,18,28,0.30)',
+  runwayLight: '#ffe9a8',
+  runwayLightEdge: '#ffb02e',
   ridgeNear: '#5d7a52',
   fieldA: '#6da24f',
   fieldB: '#8fae4e',

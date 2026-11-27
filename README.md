@@ -14,18 +14,24 @@ rings, then put her down on the runway before the fuel runs out.
 
 - **Chase view over recognisable terrain.** A pseudo-3D canvas renderer
   draws the ridge in depth slices: rolling hills, the river winding down
-  the valley, fields, the volcano with its snow cap, and the sea past the
+  the valley, fields, the volcano with its snow cap and a smoke column
+  over the crater, a town by the runway approach, and the sea past the
   coast. The plane stays in frame, banked with the roll, with its
-  navigation lights on.
+  navigation lights on and its shadow on the ground below.
 - **Lit instruments.** An attitude gauge, altimeter and airspeed dial sit
-  in a panel along the bottom, with throttle and fuel bars and a next-ring
-  readout. The HUD shows altitude, speed and heading on a compass tape,
-  plus score, rings and the clock.
+  in a panel along the bottom, with a vertical-speed bar, throttle and
+  fuel bars (with seconds left on the tank) and a next-ring readout. The
+  HUD shows altitude, speed and heading on a compass tape, plus the
+  crosswind, score, rings with the combo multiplier, and the clock.
 - **Fly it.** Pitch and bank with the arrow keys or WASD, throttle with
   Shift/Ctrl (or E/Q, or the mouse wheel), steer with the mouse, Space to
-  start, P to pause. Flying through a ring scores 250 (400 for a dead-centre
-  pass); a landing scores 1,000, plus 400 for a soft one. Hit the ground
-  or the water, run out of runway, or run dry and you are done.
+  start, P to pause. A crosswind that shifts with the bends pushes the
+  plane sideways — crab into it to hold the line. Flying through a ring
+  scores 250 (400 for a dead-centre pass), and rings chained without a
+  miss pay 50 more each; a landing scores 1,000, plus 400 for a soft one.
+  Hit the ground or the water, run out of runway, or run dry and you are
+  done. The tank is tight enough that firewalling the throttle the whole
+  way risks running dry short of the runway.
 - **Sound.** Engine hum, ring chimes, a landing arpeggio and a crash,
   all synthesised live with WebAudio — no audio files.
 - **Offline.** Plain static files under `game/`, no libraries, no network

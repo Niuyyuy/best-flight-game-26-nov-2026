@@ -1,19 +1,33 @@
-// Merapi Ridge Run: a chase-view flight game for best-flight-game-20261126-0057
-// (Node 22, standard library only). The game is this directory's game/
-// folder, plain static files a desktop browser loads offline (game/index.html
-// and its ES modules, no library and no network request), and this program
-// hands it in: it copies game/ and screenshots/ from beside this file to
-// /output and writes /output/dossier.json, the summary the judge reads, with
-// the vendored make.fun library. Nothing here needs the network, and the
-// output directory is created fresh on every run, so a stale dossier can
-// never be handed in by mistake.
+// Merapi Ridge Run — REBUILD (27 Nov evening): a chase-view flight game for
+// best-flight-game-20261126-0057 (Node 22, standard library only). The game
+// is this directory's game/ folder, plain static files a desktop browser
+// loads offline (game/index.html and its ES modules, no library and no
+// network request), and this program hands it in: it copies game/ and
+// screenshots/ from beside this file to /output and writes
+// /output/dossier.json, the summary the judge reads, with the vendored
+// make.fun library. Nothing here needs the network, and the output
+// directory is created fresh on every run, so a stale dossier can never be
+// handed in by mistake.
+//
+// What the rebuild changed, and why it plays better than the floor entry:
+// crosswind gusts slide the plane sideways (watch the WIND readout and crab
+// into them); rings chained without a miss pay a growing combo bonus; the
+// tank is tighter, so throttling flat out all the way now risks running dry
+// short of the runway. The ridge itself reads better too: layered mountain
+// silhouettes, smoke over the volcano crater, a town by the runway approach
+// and a hamlet up the valley, runway edge and approach lights with the
+// strip's number, a ground shadow under the plane, and a vertical-speed bar
+// plus fuel seconds on the instruments.
 //
 // The game: pilot a small courier plane down the Merapi ridge — a seeded
-// river valley, farmland, a town, a volcano and a coastline — through eight
-// glowing rings, then put her down on the runway before the fuel runs out.
-// Keyboard and mouse, WebAudio sounds synthesised live, title / play /
-// paused / crashed / landed screens, and staged ?shot= scenes for the
-// screenshots (see shots.json).
+// river valley, patchwork farmland, a town by the runway and a hamlet up
+// the valley, a smoking volcano and a coastline — through eight glowing
+// rings, then put her down on runway 36 before the fuel runs out. A
+// crosswind that changes with the bends slides the plane sideways, rings
+// chained without a miss pay a growing combo bonus, and a soft touchdown
+// pays extra. Keyboard and mouse, WebAudio sounds synthesised live, title
+// / play / paused / crashed / landed screens, and staged ?shot= scenes for
+// the screenshots (see shots.json).
 //
 // Serve it locally with `node serve.ts`, then open http://localhost:8080.
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:

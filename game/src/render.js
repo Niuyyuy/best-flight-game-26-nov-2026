@@ -5,8 +5,8 @@
 // plane and the lit instruments are painted over it. Flat canvas shapes and
 // canvas text only — no images, no network.
 
-import { COURSE, FIELD, FOCAL, FONT, PALETTE, VIEW_DISTANCE } from './config.js';
-import { fieldId, isWater, terrainHeight, VOLCANO } from './world.js';
+import { COURSE, FIELD, FOCAL, FONT, PALETTE, PLANE, VIEW_DISTANCE } from './config.js';
+import { fieldId, isWater, terrainHeight, VOLCANO, windAt } from './world.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_PLAY = 'play';
@@ -117,6 +117,30 @@ export function createRenderer(canvas) {
     context.beginPath();
     context.arc(sunX, sunY, 40, 0, Math.PI * 2);
     context.fill();
+    // Two far ridge lines above the horizon, sliding sideways with the
+    // heading so the world feels deep instead of flat. The nearer line is
+    // darker and lower; both are drawn as sine ridges, never as straight
+    // bands, so the horizon reads as mountains, not a wall.
+    for (const layer of [
+      { lift: 34, amp: 16, colour: PALETTE.ridgeSilhouette, drift: 1.6, phase: 2.1 },
+      { lift: 16, amp: 11, colour: PALETTE.ridgeMid, drift: 0.9, phase: 5.4 },
+    ]) {
+      context.fillStyle = layer.colour;
+      context.beginPath();
+      context.moveTo(0, horizonY + 2);
+      for (let x = 0; x <= FIELD.width; x += 32) {
+        const wave = Math.sin(x * 0.006 + layer.phase + plane.heading * 0.02 * layer.drift)
+          + 0.5 * Math.sin(x * 0.013 + layer.phase * 2.7);
+        context.lineTo(x, horizonY - layer.lift - wave * layer.amp);
+      }
+      context.lineTo(FIELD.width, horizonY + 2);
+      context.closePath();
+      context.fill();
+    }
+    // The volcano's smoke: a column of puffs rising off the crater and
+    // leaning downwind, so the ridge's namesake is visible long before the
+    // cone itself fills the frame. Each puff grows and fades as it climbs.
+    drawSmoke(state);
     // Clouds drift with the course: each one is a fixed world point. Near
     // ones are skipped, so a cloud the plane is about to fly through never
     // fills the frame, and the size is capped for the same reason.
@@ -131,6 +155,35 @@ export function createRenderer(canvas) {
       context.ellipse(p.x, p.y, r, r * 0.42, 0, 0, Math.PI * 2);
       context.fill();
     }
+  }
+
+  /**
+   * The smoke column over the volcano: nine puffs rising off the crater,
+   * each one further up, further downwind and fainter than the last, so
+   * the plume reads as a rising column even in a still frame. Skipped
+   * entirely once the volcano is behind the plane or out of view.
+   */
+  function drawSmoke(state) {
+    const plane = state.plane;
+    const dz = VOLCANO.z - plane.z;
+    if (dz < 60 || dz > VIEW_DISTANCE) return;
+    const top = terrainHeight(VOLCANO.x, VOLCANO.z);
+    const drift = windAt(VOLCANO.z) * 6;
+    const sway = Math.sin(state.elapsed * 0.4) * 6;
+    for (let i = 0; i < 9; i += 1) {
+      const puffX = VOLCANO.x + drift * i * 0.14 + sway * (i / 9);
+      const puffY = top + 26 + i * 26;
+      const puffZ = VOLCANO.z - i * 14;
+      const p = project(puffX, puffY, puffZ, plane);
+      if (!p) continue;
+      const r = Math.max(3, (7 + i * 5) * p.scale);
+      context.fillStyle = PALETTE.smoke;
+      context.globalAlpha = Math.max(0.12, 0.62 - i * 0.055);
+      context.beginPath();
+      context.arc(p.x, p.y, r, 0, Math.PI * 2);
+      context.fill();
+    }
+    context.globalAlpha = 1;
   }
 
   /** What a strip of ground looks like, from what is under its middle. */
@@ -196,6 +249,45 @@ export function createRenderer(canvas) {
     }
   }
 
+  /**
+   * Two settlements the floor entry only named: a town of twenty-six
+   * houses beside the runway approach, and a hamlet of fourteen further
+   * up the valley. Positions come from a fixed scramble of the index, so
+   * the towns never move between runs; each house is a wall block with a
+   * pitched roof, drawn only while it is big enough to see.
+   */
+  const TOWNS = [];
+  for (let i = 0; i < 26; i += 1) {
+    TOWNS.push({ x: 150 + ((i * 137) % 230), z: 8120 + ((i * 211) % 520), w: 14 + ((i * 53) % 16) });
+  }
+  for (let i = 0; i < 14; i += 1) {
+    TOWNS.push({ x: 250 + ((i * 173) % 150), z: 5020 + ((i * 149) % 420), w: 12 + ((i * 41) % 12) });
+  }
+
+  function drawTown(state) {
+    const plane = state.plane;
+    for (const house of TOWNS) {
+      const dz = house.z - plane.z;
+      if (dz < 30 || dz > VIEW_DISTANCE) continue;
+      const ground = terrainHeight(house.x, house.z);
+      const base = project(house.x, ground, house.z, plane);
+      if (!base || base.scale < 0.02) continue;
+      const top = project(house.x, ground + house.w * 0.6, house.z, plane);
+      if (!top) continue;
+      const half = (house.w * base.scale) / 2;
+      if (half < 1.5) continue;
+      context.fillStyle = PALETTE.townWall;
+      context.fillRect(base.x - half, top.y, half * 2, base.y - top.y);
+      context.fillStyle = PALETTE.townRoof;
+      context.beginPath();
+      context.moveTo(base.x - half - 2, top.y);
+      context.lineTo(base.x, top.y - Math.max(2, half * 0.7));
+      context.lineTo(base.x + half + 2, top.y);
+      context.closePath();
+      context.fill();
+    }
+  }
+
   function drawRunway(state) {
     const plane = state.plane;
     if (plane.z > COURSE.runwayEnd || COURSE.runwayStart - plane.z > VIEW_DISTANCE) return;
@@ -249,6 +341,36 @@ export function createRenderer(canvas) {
       context.closePath();
       context.fill();
     }
+    // Edge lights down both sides, pale on the far half and amber near,
+    // so the strip reads as a runway from a kilometre out, not a grey bar.
+    for (let z = COURSE.runwayStart; z <= COURSE.runwayEnd; z += 140) {
+      for (const side of [-hw, hw]) {
+        const light = project(side, 14, z, plane);
+        if (!light || light.scale < 0.12) continue;
+        context.fillStyle = z > (COURSE.runwayStart + COURSE.runwayEnd) / 2 ? PALETTE.runwayLight : PALETTE.runwayLightEdge;
+        context.beginPath();
+        context.arc(light.x, light.y, Math.max(1.5, 2.4 * light.scale), 0, Math.PI * 2);
+        context.fill();
+      }
+    }
+    // Approach lights: three rows of white bars on the grass before the
+    // threshold, the last thing a pilot lines up on before touching down.
+    for (let z = COURSE.runwayStart - 260; z < COURSE.runwayStart; z += 70) {
+      const a = project(-12, 13, z, plane);
+      const b = project(12, 13, z, plane);
+      if (!a || !b) continue;
+      context.fillStyle = PALETTE.runwayLight;
+      context.fillRect(a.x, a.y - 1, Math.max(1, b.x - a.x), 2);
+    }
+    // The runway's number, painted big across the threshold: the course
+    // flies due north, so the strip is 36. Drawn as screen text at the
+    // projected threshold, sized by distance and never smaller than a
+    // readable label.
+    const number = project(0, 14, COURSE.runwayStart + 130, plane);
+    if (number && number.scale > 0.25) {
+      context.textBaseline = 'alphabetic';
+      text('36', number.x, number.y, Math.max(16, Math.min(64, 46 * number.scale)), PALETTE.runwayMark, 'center');
+    }
   }
 
   function drawRings(state) {
@@ -292,6 +414,22 @@ export function createRenderer(canvas) {
   /** The courier plane from behind, banked with the roll, propeller a blur. */
   function drawPlane(state) {
     const plane = state.plane;
+    // The plane's shadow on the ground ahead and below: a dark ellipse
+    // that grows sharper and darker as the plane sinks, the one cue that
+    // says how high the plane really is over the ridge.
+    if (!state.landed) {
+      const ground = terrainHeight(plane.x, plane.z + 60);
+      const shadow = project(plane.x, ground, plane.z + 60, plane);
+      if (shadow) {
+        const heightAbove = Math.max(0, plane.altitude - ground);
+        context.globalAlpha = Math.max(0.05, 0.30 - heightAbove / 1400);
+        context.fillStyle = PALETTE.shadow;
+        context.beginPath();
+        context.ellipse(shadow.x, shadow.y, Math.max(6, 70 * shadow.scale), Math.max(2, 12 * shadow.scale), 0, 0, Math.PI * 2);
+        context.fill();
+        context.globalAlpha = 1;
+      }
+    }
     const bob = Math.sin(state.elapsed * 2.1) * 2;
     const x = CX + plane.roll * 1.1;
     const y = PLANE_SCREEN_Y - plane.pitch * 46 + bob;
@@ -322,6 +460,10 @@ export function createRenderer(canvas) {
     context.quadraticCurveTo(0, 52, -26, 42);
     context.closePath();
     context.fill();
+    // A pale cheatline down the fuselage, so the body reads as built
+    // rather than a flat red shape.
+    context.fillStyle = PALETTE.planeWing;
+    context.fillRect(-3, -50, 6, 88);
     // Cabin stripe and lit windows.
     context.fillStyle = PALETTE.planeTrim;
     context.fillRect(-20, -38, 40, 7);
@@ -432,6 +574,20 @@ export function createRenderer(canvas) {
     context.moveTo(sx, sy);
     context.lineTo(sx + Math.cos(spdAngle) * 19, sy + Math.sin(spdAngle) * 19);
     context.stroke();
+    // Vertical speed: a bar that grows up from the middle when climbing
+    // and down when sinking, so the pilot sees the climb rate at a glance
+    // instead of watching the altimeter needle crawl.
+    const vs = plane.pitch * (plane.pitch > 0 ? PLANE.climbRate : PLANE.sinkRate) * (plane.speed / 90);
+    const vx = 584;
+    const vy = top + 40;
+    context.fillStyle = PALETTE.panelEdge;
+    context.fillRect(vx - 5, vy - 24, 10, 48);
+    const vsHeight = Math.max(0, Math.min(24, (Math.abs(vs) / 30) * 24));
+    context.fillStyle = vs >= 0 ? PALETTE.gaugeLit : PALETTE.gaugeAmber;
+    if (vs >= 0) context.fillRect(vx - 5, vy - vsHeight, 10, vsHeight);
+    else context.fillRect(vx - 5, vy, 10, vsHeight);
+    context.textBaseline = 'alphabetic';
+    text('V/S', vx, vy + 38, 11, PALETTE.hudDim, 'center');
     // Throttle and fuel, as bars on the right of the panel.
     text('THROTTLE', 640, top + 26, 13, PALETTE.hudDim, 'left');
     context.fillStyle = PALETTE.panelEdge;
@@ -442,7 +598,12 @@ export function createRenderer(canvas) {
     context.fillStyle = PALETTE.panelEdge;
     context.fillRect(640, top + 74, 220, 12);
     context.fillStyle = state.fuel < 30 ? PALETTE.danger : PALETTE.ok;
-    context.fillRect(640, top + 74, 220 * Math.max(0, state.fuel / 240), 12);
+    context.fillRect(640, top + 74, 220 * Math.max(0, state.fuel / PLANE.fuel), 12);
+    // Seconds left on the tank, in figures beside the bar: the bar says
+    // roughly, the number says exactly, and the number is what a pilot
+    // deciding whether to firewall the throttle actually reads.
+    context.textBaseline = 'alphabetic';
+    text(`${Math.ceil(state.fuel)}s`, 868, top + 86, 13, state.fuel < 30 ? PALETTE.danger : PALETTE.hudDim, 'left');
     // Next ring: a small readout so the pilot always knows the target.
     const next = state.rings.find((ring) => !ring.passed);
     text(state.landed ? 'LANDED ON THE RUNWAY' : next ? `NEXT RING  ${Math.max(0, Math.round(next.z - plane.z))} m` : 'RUNWAY AHEAD — LINE UP', 900, top + 34, 15, PALETTE.gaugeLit, 'left');
@@ -458,6 +619,11 @@ export function createRenderer(canvas) {
     context.shadowOffsetY = 1;
     text(`ALT ${Math.round(plane.altitude)} m`, 24, 20, 26, PALETTE.hudText, 'left');
     text(`SPD ${Math.round(plane.speed * 3.6)} km/h`, 24, 52, 26, PALETTE.hudText, 'left');
+    // The crosswind, in figures and an arrow: the gust is the reason the
+    // plane keeps sliding off the line, so the pilot sees it, not just
+    // feels it. Positive wind pushes right, negative pushes left.
+    const windArrow = state.wind > 0.5 ? '→' : state.wind < -0.5 ? '←' : '—';
+    text(`WIND ${Math.abs(Math.round(state.wind))} m/s ${windArrow}`, 24, 86, 18, PALETTE.hudDim, 'left');
     // Compass tape across the top centre.
     const heading = Math.round(((plane.heading % 360) + 360) % 360) % 360;
     text(headingLabel(heading), CX, 20, 26, PALETTE.hudText, 'center');
@@ -471,7 +637,10 @@ export function createRenderer(canvas) {
       if (isCardinal) text(marks[Math.round(hdg / 45) % 8], x, 68, 13, PALETTE.hudText, 'center');
     }
     text(scoreLabel(Math.round(state.score)), FIELD.width - 24, 20, 26, PALETTE.hudText, 'right');
-    text(ringsLabel(`${state.ringsHit}/${state.rings.length}`), FIELD.width - 24, 52, 20, PALETTE.hudDim, 'right');
+    const ringsText = state.combo > 1
+      ? `${state.ringsHit}/${state.rings.length}  COMBO x${state.combo}`
+      : `${state.ringsHit}/${state.rings.length}`;
+    text(ringsLabel(ringsText), FIELD.width - 24, 52, 20, PALETTE.hudDim, 'right');
     text(timeLabel(`${Math.floor(state.elapsed / 60)}:${String(Math.floor(state.elapsed % 60)).padStart(2, '0')}`), FIELD.width - 24, 78, 20, PALETTE.hudDim, 'right');
     if (state.fuel <= 0 && screen === SCREEN_PLAY) {
       text('FUEL EMPTY — GLIDE TO THE RUNWAY', CX, 108, 22, PALETTE.danger, 'center');
@@ -510,6 +679,7 @@ export function createRenderer(canvas) {
   const TITLE_LINES = [
     'Fly the courier plane down the Merapi ridge,',
     'through all eight glowing rings, then land on the runway.',
+    'Wind gusts push you sideways — chain rings for combo bonuses.',
     'Arrows or WASD: pitch and bank · Shift / Ctrl: throttle',
     'Mouse: steer · Space: start · P: pause',
     '',
@@ -523,12 +693,13 @@ export function createRenderer(canvas) {
     context.setTransform(view.scale, 0, 0, view.scale, view.x, view.y);
     drawSky(state);
     drawTerrain(state);
+    drawTown(state);
     drawRunway(state);
     drawRings(state);
     drawPlane(state);
     drawInstruments(state);
     if (screen === SCREEN_TITLE) {
-      TITLE_LINES[4] = bestLabel(best);
+      TITLE_LINES[5] = bestLabel(best);
       drawPanel('Merapi Ridge Run', TITLE_LINES, 'Press Space or click to fly');
       return;
     }
